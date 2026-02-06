@@ -13,7 +13,20 @@ This document tracks the training process for the English-Bengali Translator.
 ### 2. Pre-training (Monolingual)
 - **Goal**: Train the model to understand language structure using Denoising Auto-Encoding (BART/mBART style).
 - **Data**: `balanced_wikitext_train` (En) + `cleaned_wikipedia_bn_train` (Bn).
-- **Status**: *Not Started*
+- **Status**: **Ready**
+
+#### How to Start Pre-training
+Run the training script from the project root:
+
+```bash
+# Basic run with defaults (3 epochs, batch size 8)
+venv/bin/python -m src.training.train
+
+# Custom configuration
+venv/bin/python -m src.training.train --epochs 5 --batch_size 16 --output_dir models/custom_ckpt
+```
+
+**Note**: Ensure you use `python -m src.training.train` to avoid import errors.
 
 ### 3. Translation Training (Parallel)
 - **Goal**: Fine-tune on parallel corpora (e.g., IndicTrans2) for translation.
