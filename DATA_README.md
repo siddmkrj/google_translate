@@ -34,3 +34,23 @@
     - Path: `data/cleaned_wikipedia_bn_train`
     - Count: 10,000 -> **9,983**
     - *Note*: High quality retention.
+
+## 3. Balancing
+Script: `src/data/balance_data.py`
+- **Objective**: Equalize corpus size for better initial alignment.
+- **Action**: Downsampled English `cleaned_wikitext_train` to 10,000 samples.
+- **Output**: `balanced_wikitext_train`.
+
+## Current Status (Ready for Training)
+| Language | Dataset Name | Path | Samples |
+| :--- | :--- | :--- | :--- |
+| **English** | Wikitext (Balanced) | `data/balanced_wikitext_train` | **10,000** |
+| **Bengali** | Wikipedia (Cleaned) | `data/cleaned_wikipedia_bn_train` | **9,983** |
+
+## Usage
+To load the balanced data:
+```python
+from datasets import load_from_disk
+ds_en = load_from_disk('data/balanced_wikitext_train')
+ds_bn = load_from_disk('data/cleaned_wikipedia_bn_train')
+```
