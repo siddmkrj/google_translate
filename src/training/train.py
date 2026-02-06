@@ -37,8 +37,7 @@ def train(output_dir="models/checkpoints", tokenizer_path="models/tokenizer/toke
         logging_steps=100,
         prediction_loss_only=True,
         remove_unused_columns=False, # Custom dataset keys
-        fp16=torch.cuda.is_available() or torch.backends.mps.is_available(), # Use Mixed Precision if available (MPS/CUDA)
-        use_mps_device=torch.backends.mps.is_available(), # Explicitly enable MPS for Mac
+        fp16=torch.cuda.is_available(), # Use Mixed Precision if CUDA available (MPS fp16 support varies, standard auto-detection is better)
     )
     
     # 5. Trainer
