@@ -1,0 +1,26 @@
+# Core ML
+torch>=2.0.0
+transformers>=4.30.0
+accelerate>=0.20.0
+datasets>=2.12.0
+
+# Data Processing
+pandas>=2.0.0
+numpy<2.0
+scikit-learn>=1.2.0
+
+# API / Serving
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+pydantic>=2.0.0
+
+# Utilities
+tqdm>=4.65.0
+python-dotenv>=1.0.0
+wandb>=0.15.0  # For experiment tracking
+
+# Dev/Test
+pytest>=7.3.0
+black>=23.3.0
+isort>=5.12.0
+fasttext-wheel>=0.9.2
