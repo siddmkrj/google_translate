@@ -61,7 +61,7 @@ if __name__ == "__main__":
     parser.add_argument("--tokenizer_path", default="models/tokenizer/tokenizer.json", help="Path to tokenizer")
     parser.add_argument("--lr", type=float, default=5e-4, help="Learning rate")
     
-    parser.add_argument("--en_path", default="data/balanced_wikitext_train", help="Path to English dataset")
+    parser.add_argument("--en_path", default="data/cleaned_wikitext_train", help="Path to English dataset")
     parser.add_argument("--bn_path", default="data/cleaned_wikipedia_bn_train", help="Path to Bengali dataset")
     
     args = parser.parse_args()
