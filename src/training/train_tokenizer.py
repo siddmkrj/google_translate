@@ -25,7 +25,37 @@ def _mlflow_log_params_and_artifacts(params: dict, tokenizer_dir: str, tokenizer
 
         path = os.path.join(tokenizer_dir, tokenizer_filename)
         if os.path.isfile(path):
-            mlflow.log_artifact(path, artifact_path="tokenizer")
+            # If the tracking server is configured with a local `file:` artifact store that isn't
+            # writable/accessible from this client (common with remote servers or containers),
+            # artifact logging will fail. In that case, keep params but skip artifacts.
+            artifact_uri = None
+            try:
+                artifact_uri = mlflow.get_artifact_uri()
+            except Exception:
+                artifact_uri = None
+
+            if artifact_uri and artifact_uri.startswith("file:"):
+                print(
+                    "MLflow artifact logging skipped (artifact store is local file://).\n"
+                    "Fix by starting MLflow server with artifact proxying, e.g.:\n"
+                    "  mlflow server --host 127.0.0.1 --port 5001 --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlartifacts"
+                )
+                return
+
+            try:
+                mlflow.log_artifact(path, artifact_path="tokenizer")
+            except OSError as e:
+                # Read-only / permission errors
+                if getattr(e, "errno", None) in (30, 13):
+                    print(
+                        "MLflow artifact logging skipped (artifact store not writable).\n"
+                        "Fix by starting MLflow server with artifact proxying, e.g.:\n"
+                        "  mlflow server --host 127.0.0.1 --port 5001 --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlartifacts"
+                    )
+                else:
+                    print(f"MLflow artifact logging skipped: {e}")
+            except Exception as e:
+                print(f"MLflow artifact logging skipped: {e}")
     except Exception as e:
         print(f"MLflow logging skipped: {e}")
 

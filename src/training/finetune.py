@@ -50,9 +50,31 @@ def _maybe_log_mlflow_artifacts(output_dir: str):
 
         if mlflow.active_run() is None:
             return
+        # If server is using local file:// artifact URIs, the client may not be able to write there.
+        try:
+            artifact_uri = mlflow.get_artifact_uri()
+        except Exception:
+            artifact_uri = None
+        if artifact_uri and artifact_uri.startswith("file:"):
+            print(
+                "MLflow artifact logging skipped (artifact store is local file://).\n"
+                "Fix by starting MLflow server with artifact proxying, e.g.:\n"
+                "  mlflow server --host 127.0.0.1 --port 5001 --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlartifacts"
+            )
+            return
         final_dir = os.path.join(output_dir, "final")
         if os.path.isdir(final_dir):
-            mlflow.log_artifacts(final_dir, artifact_path="model")
+            try:
+                mlflow.log_artifacts(final_dir, artifact_path="model")
+            except OSError as e:
+                if getattr(e, "errno", None) in (30, 13):
+                    print(
+                        "MLflow artifact logging skipped (artifact store not writable).\n"
+                        "Fix by starting MLflow server with artifact proxying, e.g.:\n"
+                        "  mlflow server --host 127.0.0.1 --port 5001 --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlartifacts"
+                    )
+                else:
+                    print(f"MLflow artifact logging skipped: {e}")
     except Exception as e:
         print(f"MLflow artifact logging skipped: {e}")
 
