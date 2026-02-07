@@ -1,11 +1,62 @@
 import argparse
+import inspect
+import os
+
 import torch
 from transformers import Trainer, TrainingArguments, DataCollatorForSeq2Seq
 from src.training.model import get_model
 from src.training.dataset import T5DenoisingDataset
 from tokenizers import Tokenizer
 
-def train(output_dir="models/checkpoints", tokenizer_path="models/tokenizer/tokenizer.json", en_path="data/cleaned_wikitext_train", bn_path="data/cleaned_wikipedia_bn_train", epochs=3, batch_size=8, lr=5e-4):
+def _mlflow_env_setup(mlflow_tracking_uri, mlflow_experiment):
+    if mlflow_tracking_uri:
+        os.environ["MLFLOW_TRACKING_URI"] = mlflow_tracking_uri
+    if mlflow_experiment:
+        os.environ["MLFLOW_EXPERIMENT_NAME"] = mlflow_experiment
+
+
+def _training_args_mlflow_kwargs(run_name):
+    """
+    Adds MLflow reporting if supported by this transformers version.
+    """
+    params = inspect.signature(TrainingArguments.__init__).parameters
+    kw = {}
+    if "report_to" in params:
+        kw["report_to"] = ["mlflow"]
+    if run_name and "run_name" in params:
+        kw["run_name"] = run_name
+    return kw
+
+
+def _maybe_log_mlflow_artifacts(output_dir: str):
+    """
+    Logs the final saved model directory as MLflow artifacts if an MLflow run is active.
+    """
+    try:
+        import mlflow  # type: ignore
+
+        if mlflow.active_run() is None:
+            return
+        final_dir = os.path.join(output_dir, "final")
+        if os.path.isdir(final_dir):
+            mlflow.log_artifacts(final_dir, artifact_path="model")
+    except Exception as e:
+        print(f"MLflow artifact logging skipped: {e}")
+
+
+def train(
+    output_dir="models/checkpoints",
+    tokenizer_path="models/tokenizer/tokenizer.json",
+    en_path="data/cleaned_wikitext_train",
+    bn_path="data/cleaned_wikipedia_bn_train",
+    epochs=3,
+    batch_size=8,
+    lr=5e-4,
+    mlflow_tracking_uri=None,
+    mlflow_experiment=None,
+    run_name=None,
+):
+    _mlflow_env_setup(mlflow_tracking_uri, mlflow_experiment)
     
     # 1. Dataset
     print("Initializing Dataset...")
@@ -50,6 +101,7 @@ def train(output_dir="models/checkpoints", tokenizer_path="models/tokenizer/toke
         prediction_loss_only=True,
         remove_unused_columns=False, # Custom dataset keys
         fp16=torch.cuda.is_available(), # Use Mixed Precision if CUDA available (MPS fp16 support varies, standard auto-detection is better)
+        **_training_args_mlflow_kwargs(run_name),
     )
     
     # 5. Trainer
@@ -64,6 +116,7 @@ def train(output_dir="models/checkpoints", tokenizer_path="models/tokenizer/toke
     
     print("Training Complete. Saving Final Model...")
     trainer.save_model(output_dir + "/final")
+    _maybe_log_mlflow_artifacts(output_dir)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -75,6 +128,22 @@ if __name__ == "__main__":
     
     parser.add_argument("--en_path", default="data/cleaned_wikitext_train", help="Path to English dataset")
     parser.add_argument("--bn_path", default="data/cleaned_wikipedia_bn_train", help="Path to Bengali dataset")
+
+    # MLflow (optional)
+    parser.add_argument("--mlflow_tracking_uri", default=None, help="e.g. http://localhost:5001")
+    parser.add_argument("--mlflow_experiment", default=None, help="MLflow experiment name")
+    parser.add_argument("--run_name", default=None, help="Run name shown in tracking UI")
     
     args = parser.parse_args()
-    train(output_dir=args.output_dir, tokenizer_path=args.tokenizer_path, en_path=args.en_path, bn_path=args.bn_path, epochs=args.epochs, batch_size=args.batch_size, lr=args.lr)
+    train(
+        output_dir=args.output_dir,
+        tokenizer_path=args.tokenizer_path,
+        en_path=args.en_path,
+        bn_path=args.bn_path,
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        lr=args.lr,
+        mlflow_tracking_uri=args.mlflow_tracking_uri,
+        mlflow_experiment=args.mlflow_experiment,
+        run_name=args.run_name,
+    )

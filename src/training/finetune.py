@@ -27,6 +27,36 @@ def _find_hf_checkpoints(search_root: str = "models") -> list[str]:
     return candidates
 
 
+def _mlflow_env_setup(mlflow_tracking_uri: Optional[str], mlflow_experiment: Optional[str]):
+    if mlflow_tracking_uri:
+        os.environ["MLFLOW_TRACKING_URI"] = mlflow_tracking_uri
+    if mlflow_experiment:
+        os.environ["MLFLOW_EXPERIMENT_NAME"] = mlflow_experiment
+
+
+def _training_args_mlflow_kwargs(run_name: Optional[str]):
+    params = inspect.signature(TrainingArguments.__init__).parameters
+    kw = {}
+    if "report_to" in params:
+        kw["report_to"] = ["mlflow"]
+    if run_name and "run_name" in params:
+        kw["run_name"] = run_name
+    return kw
+
+
+def _maybe_log_mlflow_artifacts(output_dir: str):
+    try:
+        import mlflow  # type: ignore
+
+        if mlflow.active_run() is None:
+            return
+        final_dir = os.path.join(output_dir, "final")
+        if os.path.isdir(final_dir):
+            mlflow.log_artifacts(final_dir, artifact_path="model")
+    except Exception as e:
+        print(f"MLflow artifact logging skipped: {e}")
+
+
 def finetune(
     parallel_path: str = "data/cleaned_banglanmt_parallel",
     src_lang: str = "en",
@@ -44,7 +74,11 @@ def finetune(
     max_train_samples: Optional[int] = None,
     max_eval_samples: Optional[int] = None,
     prefix: str = "translate English to Bengali: ",
+    mlflow_tracking_uri: Optional[str] = None,
+    mlflow_experiment: Optional[str] = None,
+    run_name: Optional[str] = None,
 ):
+    _mlflow_env_setup(mlflow_tracking_uri, mlflow_experiment)
     if not os.path.isdir(init_model_dir):
         found = _find_hf_checkpoints("models")
         if found:
@@ -136,6 +170,7 @@ def finetune(
         per_device_eval_batch_size=batch_size,
         learning_rate=lr,
         **eval_kw,
+        **_training_args_mlflow_kwargs(run_name),
         eval_steps=500,
         save_steps=500,
         logging_steps=100,
@@ -157,6 +192,7 @@ def finetune(
 
     print("Fine-tuning complete. Saving final model...")
     trainer.save_model(os.path.join(output_dir, "final"))
+    _maybe_log_mlflow_artifacts(output_dir)
 
 
 if __name__ == "__main__":
@@ -180,6 +216,11 @@ if __name__ == "__main__":
     parser.add_argument("--max_eval_samples", type=int, default=None)
     parser.add_argument("--prefix", default="translate English to Bengali: ")
 
+    # MLflow (optional)
+    parser.add_argument("--mlflow_tracking_uri", default=None, help="e.g. http://localhost:5001")
+    parser.add_argument("--mlflow_experiment", default=None, help="MLflow experiment name")
+    parser.add_argument("--run_name", default=None, help="Run name shown in tracking UI")
+
     a = parser.parse_args()
     finetune(
         parallel_path=a.parallel_path,
@@ -198,5 +239,8 @@ if __name__ == "__main__":
         max_train_samples=a.max_train_samples,
         max_eval_samples=a.max_eval_samples,
         prefix=a.prefix,
+        mlflow_tracking_uri=a.mlflow_tracking_uri,
+        mlflow_experiment=a.mlflow_experiment,
+        run_name=a.run_name,
     )
 

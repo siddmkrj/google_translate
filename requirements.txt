@@ -18,6 +18,7 @@ pydantic>=2.0.0
 tqdm>=4.65.0
 python-dotenv>=1.0.0
 wandb>=0.15.0  # For experiment tracking
+mlflow>=3.4.0  # Local/remote experiment tracking (e.g. http://localhost:5001)
 
 # Dev/Test
 pytest>=7.3.0

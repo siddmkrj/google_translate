@@ -148,6 +148,7 @@ outputs/
 wandb/
 runs/
 logs/
+mlruns/
 
 # IDE
 .idea/

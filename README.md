@@ -77,11 +77,16 @@ venv/bin/python -m src.data.test_tokenizer
 
 ### Step 9. Run Pre-training (Denoising Objective)
 ```bash
+# (Optional) MLflow tracking (your server)
+export MLFLOW_TRACKING_URI="http://localhost:5001"
+export MLFLOW_EXPERIMENT_NAME="google_translate"
+
 # Basic run (3 epochs, batch size 8)
 venv/bin/python -m src.training.train \
   --en_path data/cleaned_wikitext_train \
   --bn_path data/cleaned_wikipedia_bn_train \
-  --output_dir models/checkpoints
+  --output_dir models/checkpoints \
+  --run_name pretrain
 
 # Custom run
 venv/bin/python -m src.training.train --epochs 5 --batch_size 16 --output_dir models/custom_ckpt --en_path data/cleaned_wikitext_train --bn_path data/cleaned_wikipedia_bn_train
@@ -91,6 +96,10 @@ Pre-training saves a Hugging Face model checkpoint to `<output_dir>/final`.
 
 ### Step 10. Run Fine-tuning (Translation, en → bn)
 ```bash
+# (Optional) MLflow tracking (your server)
+export MLFLOW_TRACKING_URI="http://localhost:5001"
+export MLFLOW_EXPERIMENT_NAME="google_translate"
+
 # Fine-tune starting from the pre-training checkpoint saved at models/checkpoints/final
 venv/bin/python -m src.training.finetune \
   --parallel_path data/cleaned_banglanmt_parallel \
@@ -99,7 +108,8 @@ venv/bin/python -m src.training.finetune \
   --init_model_dir models/checkpoints/final \
   --output_dir models/finetuned_en_bn \
   --epochs 1 \
-  --batch_size 8
+  --batch_size 8 \
+  --run_name finetune_en_bn
 
 # Smoke test (small subset)
 venv/bin/python -m src.training.finetune \
@@ -111,7 +121,8 @@ venv/bin/python -m src.training.finetune \
   --epochs 1 \
   --batch_size 8 \
   --max_train_samples 2000 \
-  --max_eval_samples 200
+  --max_eval_samples 200 \
+  --run_name finetune_en_bn_smoke
 ```
 
 Fine-tuning saves a Hugging Face model checkpoint to `<output_dir>/final`.
