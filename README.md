@@ -55,22 +55,14 @@ venv/bin/python -m src.data.clean_data --dataset_path data/wikimedia_wikipedia_2
 
 ### Step 5. Ingest Raw Parallel Data (en↔bn)
 ```bash
-# Download both train + test so we can evaluate on a real held-out split
 venv/bin/python -m src.data.ingest_parallel --dataset csebuetnlp/banglanmt --split train
-venv/bin/python -m src.data.ingest_parallel --dataset csebuetnlp/banglanmt --split test
 ```
 
-### Step 6. Clean Parallel Data (creates cleaned train + test)
+### Step 6. Clean Parallel Data (creates `data/cleaned_banglanmt_parallel`)
 ```bash
 venv/bin/python -m src.data.clean_parallel \
-  --input_path data/csebuetnlp_banglanmt_parallel_train \
-  --output_path data/cleaned_banglanmt_parallel_train \
-  --src en --tgt bn \
-  --model_path models/lid.176.bin
-
-venv/bin/python -m src.data.clean_parallel \
-  --input_path data/csebuetnlp_banglanmt_parallel_test \
-  --output_path data/cleaned_banglanmt_parallel_test \
+  --input_path data/csebuetnlp_banglanmt_parallel \
+  --output_path data/cleaned_banglanmt_parallel \
   --src en --tgt bn \
   --model_path models/lid.176.bin
 ```
@@ -118,8 +110,7 @@ export MLFLOW_EXPERIMENT_NAME="google_translate"
 
 # Fine-tune starting from the pre-training checkpoint saved at models/checkpoints/final
 venv/bin/python -m src.training.finetune \
-  --parallel_path data/cleaned_banglanmt_parallel_train \
-  --eval_parallel_path data/cleaned_banglanmt_parallel_test \
+  --parallel_path data/cleaned_banglanmt_parallel \
   --src_lang en \
   --tgt_lang bn \
   --init_model_dir models/checkpoints/final \
@@ -130,8 +121,7 @@ venv/bin/python -m src.training.finetune \
 
 # Smoke test (small subset)
 venv/bin/python -m src.training.finetune \
-  --parallel_path data/cleaned_banglanmt_parallel_train \
-  --eval_parallel_path data/cleaned_banglanmt_parallel_test \
+  --parallel_path data/cleaned_banglanmt_parallel \
   --src_lang en \
   --tgt_lang bn \
   --init_model_dir models/checkpoints/final \
@@ -154,8 +144,7 @@ If your pre-training run was interrupted and `models/checkpoints/final` is missi
 ```bash
 INIT_MODEL_DIR="$(ls -d models/checkpoints/checkpoint-* | sort -V | tail -n 1)" && \
 venv/bin/python -m src.training.finetune \
-  --parallel_path data/cleaned_banglanmt_parallel_train \
-  --eval_parallel_path data/cleaned_banglanmt_parallel_test \
+  --parallel_path data/cleaned_banglanmt_parallel \
   --src_lang en \
   --tgt_lang bn \
   --init_model_dir "$INIT_MODEL_DIR" \
@@ -179,10 +168,8 @@ venv/bin/python -m src.data.visualize_data
 - `data/wikimedia_...`: Raw Bengali data.
 - `data/cleaned_wikitext_train`: Cleaned English data combined.
 - `data/cleaned_wikipedia_bn_train`: Cleaned Bengali data.
-- `data/csebuetnlp_banglanmt_parallel_train`: Raw parallel train split.
-- `data/csebuetnlp_banglanmt_parallel_test`: Raw parallel test split.
-- `data/cleaned_banglanmt_parallel_train`: Cleaned parallel train split (fine-tune input).
-- `data/cleaned_banglanmt_parallel_test`: Cleaned parallel test split (evaluation input).
+- `data/csebuetnlp_banglanmt_parallel`: Raw parallel corpus (train split only).
+- `data/cleaned_banglanmt_parallel`: Cleaned parallel corpus used for fine-tuning.
 - `models/checkpoints/final`: Pre-training output checkpoint (default).
 - `models/finetuned_en_bn/final`: Fine-tuned translation checkpoint (example output).
 

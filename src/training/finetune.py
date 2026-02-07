@@ -148,8 +148,8 @@ def _compute_bleu(
 
 
 def finetune(
-    parallel_path: str = "data/cleaned_banglanmt_parallel_train",
-    eval_parallel_path: Optional[str] = "data/cleaned_banglanmt_parallel_test",
+    parallel_path: str = "data/cleaned_banglanmt_parallel",
+    eval_parallel_path: Optional[str] = None,
     src_lang: str = "en",
     tgt_lang: str = "bn",
     init_model_dir: str = "models/checkpoints/final",
@@ -323,8 +323,8 @@ def finetune(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fine-tune on cleaned parallel translation data.")
-    parser.add_argument("--parallel_path", default="data/cleaned_banglanmt_parallel_train")
-    parser.add_argument("--eval_parallel_path", default="data/cleaned_banglanmt_parallel_test")
+    parser.add_argument("--parallel_path", default="data/cleaned_banglanmt_parallel")
+    parser.add_argument("--eval_parallel_path", default=None)
     parser.add_argument("--src_lang", default="en")
     parser.add_argument("--tgt_lang", default="bn")
     parser.add_argument("--init_model_dir", default="models/checkpoints/final")
