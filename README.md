@@ -29,7 +29,6 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-```
 ### 1.5 Download Language ID Model
 ```bash
 wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin -O models/lid.176.bin
@@ -40,36 +39,38 @@ wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin -O mo
 ```bash
 # 1. Ingest Data (English & Bengali)
 # English (Wikitext)
-venv/bin/python src/data/ingest_general.py --dataset wikitext --config wikitext-2-raw-v1 --split train
+venv/bin/python -m src.data.ingest_general --dataset wikitext --config wikitext-2-raw-v1 --split train
 
 # Bengali (Wikipedia)
-venv/bin/python src/data/ingest_general.py --dataset wikimedia/wikipedia --config 20231101.bn --split train
+venv/bin/python -m src.data.ingest_general --dataset wikimedia/wikipedia --config 20231101.bn --split train
 
 # 2. Clean Data
 # English
-venv/bin/python src/data/clean_data.py --dataset_path data/wikitext_wikitext-2-raw-v1_train --output_path data/cleaned_wikitext_train --lang en
+venv/bin/python -m src.data.clean_data --dataset_path data/wikitext_wikitext-2-raw-v1_train --output_path data/cleaned_wikitext_train --lang en
 
 # Bengali
-venv/bin/python src/data/clean_data.py --dataset_path data/wikimedia_wikipedia_20231101.bn_train --output_path data/cleaned_wikipedia_bn_train --lang bn
+venv/bin/python -m src.data.clean_data --dataset_path data/wikimedia_wikipedia_20231101.bn_train --output_path data/cleaned_wikipedia_bn_train --lang bn
 ```
 
 **Ingest Parallel Data**:
 ```bash
-venv/bin/python src/data/ingest_parallel.py --dataset csebuetnlp/banglanmt --split train --max_samples 50000
+venv/bin/python -m src.data.ingest_parallel --dataset csebuetnlp/banglanmt --split train --max_samples 50000
 
 # Clean Parallel Data
 venv/bin/python -m src.data.clean_parallel --input_path data/csebuetnlp_banglanmt_parallel --output_path data/cleaned_banglanmt_parallel --src en --tgt bn --model_path models/lid.176.bin
 ```
 
+Note: if the on-disk parallel dataset is stored in a WebDataset-style schema (e.g. a `jsonl` **bytes** column plus `__key__` / `__url__`), `clean_parallel` will automatically expand it into a standard `translation` dataset before cleaning.
+
 ### 3. Run Training Pipeline
 **Train Tokenizer (BPE)**:
 ```bash
-venv/bin/python src/training/train_tokenizer.py
+venv/bin/python -m src.training.train_tokenizer
 ```
 
 **Verify Tokenizer**:
 ```bash
-venv/bin/python src/data/test_tokenizer.py
+venv/bin/python -m src.data.test_tokenizer
 ```
 
 **Run Pre-training (Denoising Objective)**:
@@ -105,7 +106,7 @@ venv/bin/python -m src.training.train --epochs 5 --batch_size 16 --output_dir mo
 Check `src/data/visualize_data.py` to inspect the datasets interactively in the console.
 
 ```bash
-venv/bin/python src/data/visualize_data.py
+venv/bin/python -m src.data.visualize_data
 ```
 
 ---
