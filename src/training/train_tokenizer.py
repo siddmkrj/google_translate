@@ -3,7 +3,43 @@ import os
 from datasets import load_from_disk
 from tokenizers import Tokenizer, models, trainers, pre_tokenizers, decoders, processors
 
-def train_tokenizer(en_path, bn_path, output_dir, vocab_size=32000):
+def _mlflow_env_setup(mlflow_tracking_uri, mlflow_experiment):
+    if mlflow_tracking_uri:
+        os.environ["MLFLOW_TRACKING_URI"] = mlflow_tracking_uri
+    if mlflow_experiment:
+        os.environ["MLFLOW_EXPERIMENT_NAME"] = mlflow_experiment
+
+
+def _mlflow_log_params_and_artifacts(params: dict, tokenizer_dir: str, tokenizer_filename: str = "tokenizer.json"):
+    try:
+        import mlflow  # type: ignore
+
+        if mlflow.active_run() is None:
+            return
+
+        for k, v in params.items():
+            try:
+                mlflow.log_param(k, v)
+            except Exception:
+                pass
+
+        path = os.path.join(tokenizer_dir, tokenizer_filename)
+        if os.path.isfile(path):
+            mlflow.log_artifact(path, artifact_path="tokenizer")
+    except Exception as e:
+        print(f"MLflow logging skipped: {e}")
+
+
+def train_tokenizer(
+    en_path,
+    bn_path,
+    output_dir,
+    vocab_size=32000,
+    mlflow_tracking_uri=None,
+    mlflow_experiment=None,
+    run_name=None,
+):
+    _mlflow_env_setup(mlflow_tracking_uri, mlflow_experiment)
     print(f"Loading datasets...")
     ds_en = load_from_disk(en_path)
     ds_bn = load_from_disk(bn_path)
@@ -36,7 +72,17 @@ def train_tokenizer(en_path, bn_path, output_dir, vocab_size=32000):
     )
     
     print("Training tokenizer (this may take a moment)...")
-    tokenizer.train_from_iterator(batch_iterator(), trainer=trainer)
+    try:
+        import mlflow  # type: ignore
+    except Exception:
+        mlflow = None
+
+    if mlflow is None:
+        tokenizer.train_from_iterator(batch_iterator(), trainer=trainer)
+    else:
+        ctx = mlflow.start_run(run_name=run_name) if run_name else mlflow.start_run()
+        with ctx:
+            tokenizer.train_from_iterator(batch_iterator(), trainer=trainer)
     
     # Post-processor (optional, but good for BERT/RoBERTa style)
     # For T5/Seq2Seq, standard might be simpler. Let's stick to simple BPE for now.
@@ -51,13 +97,40 @@ def train_tokenizer(en_path, bn_path, output_dir, vocab_size=32000):
     tokenizer.save(save_path)
     print("Tokenizer saved.")
 
+    # MLflow: log key params + tokenizer artifact
+    _mlflow_log_params_and_artifacts(
+        params={
+            "en_path": en_path,
+            "bn_path": bn_path,
+            "vocab_size": vocab_size,
+            "en_samples": len(ds_en),
+            "bn_samples": len(ds_bn),
+            "output_dir": output_dir,
+        },
+        tokenizer_dir=output_dir,
+        tokenizer_filename="tokenizer.json",
+    )
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--en_path", default="data/cleaned_wikitext_train", help="Path to English dataset")
     parser.add_argument("--bn_path", default="data/cleaned_wikipedia_bn_train", help="Path to Bengali dataset")
     parser.add_argument("--output_dir", default="models/tokenizer", help="Output directory")
     parser.add_argument("--vocab_size", type=int, default=32000, help="Vocabulary size")
+
+    # MLflow (optional)
+    parser.add_argument("--mlflow_tracking_uri", default=None, help="e.g. http://localhost:5001")
+    parser.add_argument("--mlflow_experiment", default=None, help="MLflow experiment name")
+    parser.add_argument("--run_name", default=None, help="Run name shown in tracking UI")
     
     args = parser.parse_args()
     
-    train_tokenizer(args.en_path, args.bn_path, args.output_dir, args.vocab_size)
+    train_tokenizer(
+        args.en_path,
+        args.bn_path,
+        args.output_dir,
+        args.vocab_size,
+        mlflow_tracking_uri=args.mlflow_tracking_uri,
+        mlflow_experiment=args.mlflow_experiment,
+        run_name=args.run_name,
+    )

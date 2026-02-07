@@ -67,7 +67,11 @@ Note: if the on-disk parallel dataset is stored in a WebDataset-style schema (e.
 
 ### Step 7. Train Tokenizer (BPE)
 ```bash
-venv/bin/python -m src.training.train_tokenizer
+# (Optional) MLflow tracking (your server)
+export MLFLOW_TRACKING_URI="http://localhost:5001"
+export MLFLOW_EXPERIMENT_NAME="google_translate"
+
+venv/bin/python -m src.training.train_tokenizer --run_name tokenizer_bpe
 ```
 
 ### Step 8. Verify Tokenizer
