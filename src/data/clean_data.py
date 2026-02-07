@@ -6,6 +6,8 @@ import unicodedata
 from datasets import load_from_disk
 import fasttext
 
+__all__ = ["normalize_text", "clean_characters", "get_language", "clean_dataset"]
+
 def normalize_text(text):
     """
     Normalizes text using NFKC and strips whitespace.

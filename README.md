@@ -56,6 +56,9 @@ venv/bin/python src/data/clean_data.py --dataset_path data/wikimedia_wikipedia_2
 **Ingest Parallel Data**:
 ```bash
 venv/bin/python src/data/ingest_parallel.py --dataset csebuetnlp/banglanmt --split train --max_samples 50000
+
+# Clean Parallel Data
+venv/bin/python -m src.data.clean_parallel --input_path data/csebuetnlp_banglanmt_parallel --output_path data/cleaned_banglanmt_parallel --src en --tgt bn --model_path models/lid.176.bin
 ```
 
 ### 3. Run Training Pipeline
@@ -96,6 +99,7 @@ venv/bin/python -m src.training.train --epochs 5 --batch_size 16 --output_dir mo
     -   **Language ID**: FastText (`lid.176.bin`) to filter correct language.
     -   **Deduplication**: MD5 hash-based.
     -   **Filtering**: Script validation (Latin for En, Bengali for Bn).
+    -   **Parallel Data**: Consistency checks (numbers, length ratio) and strict language mismatch filtering.
 
 ### Visualization
 Check `src/data/visualize_data.py` to inspect the datasets interactively in the console.

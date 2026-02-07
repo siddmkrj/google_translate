@@ -45,7 +45,8 @@ def main():
     inspect_dataset("data/cleaned_wikipedia_bn_train", "Cleaned Wikipedia (Bengali)")
 
     # 3. Parallel
-    inspect_dataset("data/csebuetnlp_banglanmt_parallel", "BanglaNMT Parallel Data")
+    inspect_dataset("data/csebuetnlp_banglanmt_parallel", "Raw BanglaNMT Parallel Data")
+    inspect_dataset("data/cleaned_banglanmt_parallel", "Cleaned BanglaNMT Parallel Data")
     
     # 4. Balanced (if exists)
     if os.path.exists("data/balanced_wikitext_train"):
