@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 from tokenizers import Tokenizer
 from datasets import load_from_disk
 import numpy as np
+from typing import Optional, List
 
 class T5DenoisingDataset(Dataset):
     """
@@ -101,6 +102,92 @@ class T5DenoisingDataset(Dataset):
         target = input_ids + [self.eos_token_id]
         
         return source, target
+
+
+class T5TranslationDataset(Dataset):
+    """
+    Dataset for seq2seq translation fine-tuning using cleaned parallel data.
+
+    Expects a HF dataset saved via `datasets.Dataset.save_to_disk(...)` with a
+    `translation` column of dicts containing language codes, e.g.:
+      {"translation": {"en": "...", "bn": "..."}}
+    """
+
+    def __init__(
+        self,
+        tokenizer_path: str,
+        parallel_path: Optional[str] = None,
+        src_lang: str = "en",
+        tgt_lang: str = "bn",
+        max_input_length: int = 128,
+        max_target_length: int = 128,
+        prefix: Optional[str] = "translate English to Bengali: ",
+        dataset=None,
+    ):
+        self.tokenizer = Tokenizer.from_file(tokenizer_path)
+        if dataset is not None:
+            self.ds = dataset
+        else:
+            if parallel_path is None:
+                raise ValueError("Either `parallel_path` or `dataset` must be provided.")
+            self.ds = load_from_disk(parallel_path)
+
+        self.src_lang = src_lang
+        self.tgt_lang = tgt_lang
+        self.max_input_length = max_input_length
+        self.max_target_length = max_target_length
+        self.prefix = prefix or ""
+
+        self.pad_token_id = self.tokenizer.token_to_id("[PAD]")
+        self.eos_token_id = self.tokenizer.token_to_id("[SEP]")
+        if self.pad_token_id is None:
+            raise ValueError("Tokenizer is missing required special token [PAD].")
+        if self.eos_token_id is None:
+            raise ValueError("Tokenizer is missing required special token [SEP] (used as EOS).")
+
+    def __len__(self):
+        return len(self.ds)
+
+    def _encode(self, text: str, max_length: int) -> List[int]:
+        encoding = self.tokenizer.encode(text or "")
+        ids = encoding.ids
+        # Reserve space for EOS
+        if len(ids) > max_length - 1:
+            ids = ids[: max_length - 1]
+        return ids + [self.eos_token_id]
+
+    def _pad_ids(self, ids: List[int], max_length: int, pad_value: int) -> List[int]:
+        if len(ids) < max_length:
+            return ids + [pad_value] * (max_length - len(ids))
+        return ids[:max_length]
+
+    def __getitem__(self, idx: int):
+        row = self.ds[idx]
+        tr = row.get("translation") or {}
+        if not isinstance(tr, dict):
+            tr = {}
+
+        src_text = tr.get(self.src_lang, "") or ""
+        tgt_text = tr.get(self.tgt_lang, "") or ""
+
+        src_text = f"{self.prefix}{src_text}" if self.prefix else src_text
+
+        input_ids = self._encode(src_text, self.max_input_length)
+        labels_ids = self._encode(tgt_text, self.max_target_length)
+
+        attention_len = min(len(input_ids), self.max_input_length)
+        attention_mask = [1] * attention_len + [0] * (self.max_input_length - attention_len)
+
+        input_ids = self._pad_ids(input_ids, self.max_input_length, self.pad_token_id)
+
+        # Labels should ignore padding in loss with -100
+        labels = self._pad_ids(labels_ids, self.max_target_length, -100)
+
+        return {
+            "input_ids": torch.tensor(input_ids, dtype=torch.long),
+            "attention_mask": torch.tensor(attention_mask, dtype=torch.long),
+            "labels": torch.tensor(labels, dtype=torch.long),
+        }
 
 if __name__ == "__main__":
     # Test dataset

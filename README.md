@@ -82,6 +82,33 @@ venv/bin/python -m src.training.train --en_path data/cleaned_wikitext_train --bn
 venv/bin/python -m src.training.train --epochs 5 --batch_size 16 --output_dir models/custom_ckpt --en_path data/cleaned_wikitext_train --bn_path data/cleaned_wikipedia_bn_train
 ```
 
+Pre-training saves a Hugging Face model checkpoint to `<output_dir>/final`.
+**Run Fine-tuning (Translation, en → bn)**:
+```bash
+# Fine-tune starting from the pre-training checkpoint saved at models/checkpoints/final
+venv/bin/python -m src.training.finetune \
+  --parallel_path data/cleaned_banglanmt_parallel \
+  --src_lang en \
+  --tgt_lang bn \
+  --init_model_dir models/checkpoints/final \
+  --output_dir models/finetuned_en_bn \
+  --epochs 1 \
+  --batch_size 8
+
+# Smoke test (small subset)
+venv/bin/python -m src.training.finetune \
+  --parallel_path data/cleaned_banglanmt_parallel \
+  --src_lang en \
+  --tgt_lang bn \
+  --init_model_dir models/checkpoints/final \
+  --output_dir models/finetuned_en_bn_smoke \
+  --epochs 1 \
+  --batch_size 8 \
+  --max_train_samples 2000 \
+  --max_eval_samples 200
+```
+
+Fine-tuning saves a Hugging Face model checkpoint to `<output_dir>/final`.
 ---
 
 ## 📂 Data Pipeline Details
@@ -92,6 +119,9 @@ venv/bin/python -m src.training.train --epochs 5 --batch_size 16 --output_dir mo
 - `data/cleaned_wikitext_train`: Cleaned English data combined.
 - `data/cleaned_wikipedia_bn_train`: Cleaned Bengali data.
 - `data/csebuetnlp_banglanmt_...`: Parallel English-Bengali data.
+- `data/cleaned_banglanmt_parallel`: Cleaned parallel corpus used for fine-tuning.
+- `models/checkpoints/final`: Pre-training output checkpoint (default).
+- `models/finetuned_en_bn/final`: Fine-tuned translation checkpoint (example output).
 
 ### Processing Steps
 1.  **Ingestion**: Streaming from Hugging Face (`wikitext`, `wikipedia`, `banglanmt`).
@@ -124,9 +154,11 @@ venv/bin/python -m src.data.visualize_data
 -   **Data**: Cleaned Monolingual Corpora.
 -   **Status**: Ready & Verified.
 
-### 3. Fine-tuning (Next Phase)
+### 3. Fine-tuning (Translation)
 -   **Objective**: Machine Translation (Seq2Seq).
 -   **Data**: Parallel Corpora (`banglanmt`).
+-   **Entrypoint**: `venv/bin/python -m src.training.finetune` (loads `data/cleaned_banglanmt_parallel` and fine-tunes from `models/checkpoints/final`).
+-   **Local dev tip**: Use `--max_train_samples` / `--max_eval_samples` for a quick smoke test before running full fine-tuning on the full cleaned dataset.
 
 ---
 
@@ -134,6 +166,6 @@ venv/bin/python -m src.data.visualize_data
 - [x] **Initialization**: Repo & Environment.
 - [x] **Data Pipeline**: Ingestion, Cleaning, Parallel Data.
 - [x] **Training Setup**: Tokenizer, Model Arch, Pre-training Loop.
-- [ ] **Fine-tuning**: Train on Translation task.
+- [x] **Fine-tuning**: Train on Translation task.
 - [ ] **Evaluation**: BLEU/METEOR scores.
 - [ ] **Deployment**: FastAPI Service & Docker.

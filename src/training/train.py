@@ -16,7 +16,19 @@ def train(output_dir="models/checkpoints", tokenizer_path="models/tokenizer/toke
     # Vocab size from tokenizer
     tokenizer_obj = Tokenizer.from_file(tokenizer_path)
     vocab_size = tokenizer_obj.get_vocab_size()
-    model = get_model(vocab_size=vocab_size)
+    pad_token_id = tokenizer_obj.token_to_id("[PAD]")
+    eos_token_id = tokenizer_obj.token_to_id("[SEP]")
+    if pad_token_id is None:
+        raise ValueError("Tokenizer is missing required special token [PAD].")
+    if eos_token_id is None:
+        raise ValueError("Tokenizer is missing required special token [SEP] (used as EOS).")
+
+    model = get_model(
+        vocab_size=vocab_size,
+        pad_token_id=pad_token_id,
+        eos_token_id=eos_token_id,
+        decoder_start_token_id=pad_token_id,
+    )
     
     # 3. Data Collator
     # For T5, we usually pad dynamically.
