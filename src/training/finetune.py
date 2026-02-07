@@ -1,5 +1,6 @@
 import argparse
 import os
+import inspect
 from typing import Optional
 
 import torch
@@ -120,13 +121,21 @@ def finetune(
         dataset=ds_val,
     )
 
+    # transformers renamed `evaluation_strategy` -> `eval_strategy` in newer versions.
+    ta_params = inspect.signature(TrainingArguments.__init__).parameters
+    eval_kw = {}
+    if "evaluation_strategy" in ta_params:
+        eval_kw["evaluation_strategy"] = "steps"
+    elif "eval_strategy" in ta_params:
+        eval_kw["eval_strategy"] = "steps"
+
     args = TrainingArguments(
         output_dir=output_dir,
         num_train_epochs=epochs,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         learning_rate=lr,
-        evaluation_strategy="steps",
+        **eval_kw,
         eval_steps=500,
         save_steps=500,
         logging_steps=100,
