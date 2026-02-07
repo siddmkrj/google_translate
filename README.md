@@ -53,10 +53,11 @@ venv/bin/python src/training/train_tokenizer.py
 **Run Pre-training (Denoising Objective)**:
 ```bash
 # Basic run (3 epochs, batch size 8)
-venv/bin/python -m src.training.train
+# Basic run (3 epochs, batch size 8)
+venv/bin/python src/training/train.py --en_path data/balanced_wikitext_train --bn_path data/cleaned_wikipedia_bn_train
 
 # Custom run
-venv/bin/python -m src.training.train --epochs 5 --batch_size 16 --output_dir models/custom_ckpt
+venv/bin/python src/training/train.py --epochs 5 --batch_size 16 --output_dir models/custom_ckpt --en_path data/balanced_wikitext_train --bn_path data/cleaned_wikipedia_bn_train
 ```
 
 ---

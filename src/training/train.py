@@ -58,6 +58,11 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", default="models/checkpoints")
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--tokenizer_path", default="models/tokenizer/tokenizer.json", help="Path to tokenizer")
+    parser.add_argument("--lr", type=float, default=5e-4, help="Learning rate")
+    
+    parser.add_argument("--en_path", default="data/balanced_wikitext_train", help="Path to English dataset")
+    parser.add_argument("--bn_path", default="data/cleaned_wikipedia_bn_train", help="Path to Bengali dataset")
     
     args = parser.parse_args()
-    train(args.output_dir, epochs=args.epochs, batch_size=args.batch_size)
+    train(output_dir=args.output_dir, tokenizer_path=args.tokenizer_path, en_path=args.en_path, bn_path=args.bn_path, epochs=args.epochs, batch_size=args.batch_size, lr=args.lr)
