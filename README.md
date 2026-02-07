@@ -120,6 +120,20 @@ Note: `--init_model_dir` must point to an existing Hugging Face checkpoint direc
 If you trained pre-training with a different `--output_dir`, set `--init_model_dir` to that `<output_dir>/final` folder.
 If you haven’t run pre-training yet, run:
 `venv/bin/python -m src.training.train --output_dir models/checkpoints` (which produces `models/checkpoints/final`).
+If your pre-training run was interrupted and `models/checkpoints/final` is missing, use this exact command to fine-tune from the latest saved Trainer checkpoint automatically:
+```bash
+INIT_MODEL_DIR="$(ls -d models/checkpoints/checkpoint-* | sort -V | tail -n 1)" && \
+venv/bin/python -m src.training.finetune \
+  --parallel_path data/cleaned_banglanmt_parallel \
+  --src_lang en \
+  --tgt_lang bn \
+  --init_model_dir "$INIT_MODEL_DIR" \
+  --output_dir models/finetuned_en_bn_smoke \
+  --epochs 1 \
+  --batch_size 8 \
+  --max_train_samples 2000 \
+  --max_eval_samples 200
+```
 
 ### Step 11 (Optional). Inspect / Visualize Datasets
 ```bash

@@ -46,27 +46,24 @@ def finetune(
 ):
     if not os.path.isdir(init_model_dir):
         found = _find_hf_checkpoints("models")
-        hint = ""
         if found:
-            shown = "\n".join(f"- {p}" for p in found[:10])
-            more = "" if len(found) <= 10 else f"\n(and {len(found) - 10} more)"
-            hint = (
-                "\n\nDetected local HF checkpoints you can use for --init_model_dir:\n"
-                f"{shown}{more}"
+            # If `final/` wasn't produced (e.g. interrupted run), fall back to latest checkpoint.
+            latest = found[-1]
+            print(
+                f"WARNING: init_model_dir not found: {init_model_dir}\n"
+                f"Falling back to latest detected checkpoint: {latest}"
             )
+            init_model_dir = latest
         else:
-            hint = (
-                "\n\nNo local Hugging Face checkpoints were found under `models/`.\n"
+            raise FileNotFoundError(
+                f"init_model_dir not found: {init_model_dir}. "
+                "Run pre-training first (src.training.train) or pass --init_model_dir.\n\n"
+                "No local Hugging Face checkpoints were found under `models/`.\n"
                 "Create one by running pre-training first, e.g.:\n"
                 "  venv/bin/python -m src.training.train --output_dir models/checkpoints\n"
                 "Then fine-tune with:\n"
                 "  --init_model_dir models/checkpoints/final"
             )
-        raise FileNotFoundError(
-            f"init_model_dir not found: {init_model_dir}. "
-            "Run pre-training first (src.training.train) or pass --init_model_dir."
-            f"{hint}"
-        )
 
     print("Loading tokenizer...")
     tok = Tokenizer.from_file(tokenizer_path)
