@@ -1,8 +1,9 @@
 import argparse
 import hashlib
+import json
 import os
 import re
-from typing import Set, Tuple, List, Dict
+from typing import Set, Optional
 
 from datasets import load_from_disk, Dataset
 import fasttext
@@ -62,26 +63,42 @@ class ParallelCleaner:
         cleaned_tgt_texts = []
         is_valid_mask = []
         
-        # Determine keys for source and target
-        # Typical HF datasets have 'translation': {'en': '...', 'bn': '...'}
-        # But some might be flat. We'll handle 'translation' dict column primarily.
-        
-        # If 'translation' column exists and is a list of dicts
-        translations = batch.get('translation', None)
-        
-        # Fallback if flat columns (e.g. 'en', 'bn') - adjust based on actual input
-        # Assuming standard 'translation' dict format for now as per `ingest_parallel.py`
-        
-        for i, item in enumerate(translations):
-            if not isinstance(item, dict):
-                 # Skip invalid format
-                 cleaned_src_texts.append("")
-                 cleaned_tgt_texts.append("")
-                 is_valid_mask.append(False)
-                 continue
+        # HF parallel datasets typically have:
+        # - `translation`: list[dict] with keys like "en", "bn"
+        # But some datasets may have flat columns like `en`/`bn` (or `src`/`tgt`).
+        translations = batch.get("translation")
 
-            src_raw = item.get(self.src_lang, "")
-            tgt_raw = item.get(self.tgt_lang, "")
+        if translations is not None:
+            items = translations
+            mode = "translation"
+        elif self.src_lang in batch and self.tgt_lang in batch:
+            items = list(zip(batch[self.src_lang], batch[self.tgt_lang]))
+            mode = "flat_lang_cols"
+        elif "src" in batch and "tgt" in batch:
+            items = list(zip(batch["src"], batch["tgt"]))
+            mode = "src_tgt_cols"
+        else:
+            keys = sorted(batch.keys())
+            raise ValueError(
+                "Unsupported dataset schema for parallel cleaning. "
+                f"Expected `translation` or flat `{self.src_lang}`/`{self.tgt_lang}` (or `src`/`tgt`). "
+                f"Got keys: {keys}"
+            )
+
+        for item in items:
+            if mode == "translation":
+                if not isinstance(item, dict):
+                    cleaned_src_texts.append("")
+                    cleaned_tgt_texts.append("")
+                    is_valid_mask.append(False)
+                    continue
+                src_raw = item.get(self.src_lang, "") or ""
+                tgt_raw = item.get(self.tgt_lang, "") or ""
+            else:
+                # item is a (src, tgt) tuple
+                src_raw, tgt_raw = item
+                src_raw = src_raw or ""
+                tgt_raw = tgt_raw or ""
             
             # 1. Normalize
             src_norm = normalize_text(src_raw)
@@ -157,9 +174,58 @@ class ParallelCleaner:
             "valid": is_valid_mask
         }
 
+def _maybe_convert_webdataset_jsonl_to_translation(
+    dataset: Dataset, src_lang: str, tgt_lang: str
+) -> Dataset:
+    """
+    Some datasets saved to disk (e.g. WebDataset-based) store examples as a `jsonl` bytes
+    blob plus `__key__` / `__url__` columns. This converts them into a standard HF parallel
+    dataset with a `translation` dict column (one row per JSONL line).
+    """
+    if "translation" in dataset.column_names:
+        return dataset
+
+    if "jsonl" not in dataset.column_names:
+        return dataset
+
+    def gen():
+        for row in dataset:
+            blob = row.get("jsonl")
+            if blob is None:
+                continue
+            if isinstance(blob, (bytes, bytearray)):
+                text = blob.decode("utf-8", errors="replace")
+            else:
+                text = str(blob)
+
+            for line in text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(obj, dict):
+                    continue
+
+                src = obj.get(src_lang)
+                tgt = obj.get(tgt_lang)
+                if src is None or tgt is None:
+                    # Skip records that don't have both languages
+                    continue
+                yield {"translation": {src_lang: src, tgt_lang: tgt}}
+
+    print(
+        "Detected WebDataset-style schema (`jsonl` bytes). "
+        "Expanding JSONL records into `translation` rows..."
+    )
+    return Dataset.from_generator(gen)
+
 def clean_parallel_dataset(input_path, output_path, src_lang, tgt_lang, lid_model_path):
     print(f"Loading dataset from {input_path}...")
     dataset = load_from_disk(input_path)
+    dataset = _maybe_convert_webdataset_jsonl_to_translation(dataset, src_lang, tgt_lang)
     print(f"Original size: {len(dataset)}")
     
     cleaner = ParallelCleaner(src_lang, tgt_lang, lid_model_path)
@@ -179,7 +245,10 @@ def clean_parallel_dataset(input_path, output_path, src_lang, tgt_lang, lid_mode
     def restore_structure(example):
         return {"translation": example["cleaned_translation"]}
     
-    dataset = dataset.map(restore_structure, remove_columns=["cleaned_translation", "valid", "translation"])
+    remove_cols = ["cleaned_translation", "valid"]
+    if "translation" in dataset.column_names:
+        remove_cols.append("translation")
+    dataset = dataset.map(restore_structure, remove_columns=remove_cols)
     # Note: verify if columns match what we want. 
     # The map above removes "translation" (old) and puts new one in.
     
