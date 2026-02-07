@@ -22,29 +22,30 @@ This project involves the full lifecycle of a GenAI project:
 
 ## 🚀 Quick Start
 
-### 1. Environment Setup
+### Step 1. Environment Setup
 ```bash
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 1.5 Download Language ID Model
+### Step 2. Download Language ID (FastText) Model
 ```bash
+mkdir -p models
 wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin -O models/lid.176.bin
 ```
 
-### 2. Run Data Pipeline
-**Ingest & Clean Monolingual Data**:
+### Step 3. Ingest Raw Monolingual Data (English + Bengali)
 ```bash
-# 1. Ingest Data (English & Bengali)
 # English (Wikitext)
 venv/bin/python -m src.data.ingest_general --dataset wikitext --config wikitext-2-raw-v1 --split train
 
 # Bengali (Wikipedia)
 venv/bin/python -m src.data.ingest_general --dataset wikimedia/wikipedia --config 20231101.bn --split train
+```
 
-# 2. Clean Data
+### Step 4. Clean Monolingual Data (creates `data/cleaned_*`)
+```bash
 # English
 venv/bin/python -m src.data.clean_data --dataset_path data/wikitext_wikitext-2-raw-v1_train --output_path data/cleaned_wikitext_train --lang en
 
@@ -52,38 +53,43 @@ venv/bin/python -m src.data.clean_data --dataset_path data/wikitext_wikitext-2-r
 venv/bin/python -m src.data.clean_data --dataset_path data/wikimedia_wikipedia_20231101.bn_train --output_path data/cleaned_wikipedia_bn_train --lang bn
 ```
 
-**Ingest Parallel Data**:
+### Step 5. Ingest Raw Parallel Data (en↔bn)
 ```bash
-venv/bin/python -m src.data.ingest_parallel --dataset csebuetnlp/banglanmt --split train --max_samples 50000
+venv/bin/python -m src.data.ingest_parallel --dataset csebuetnlp/banglanmt --split train
+```
 
-# Clean Parallel Data
+### Step 6. Clean Parallel Data (creates `data/cleaned_banglanmt_parallel`)
+```bash
 venv/bin/python -m src.data.clean_parallel --input_path data/csebuetnlp_banglanmt_parallel --output_path data/cleaned_banglanmt_parallel --src en --tgt bn --model_path models/lid.176.bin
 ```
 
 Note: if the on-disk parallel dataset is stored in a WebDataset-style schema (e.g. a `jsonl` **bytes** column plus `__key__` / `__url__`), `clean_parallel` will automatically expand it into a standard `translation` dataset before cleaning.
 
-### 3. Run Training Pipeline
-**Train Tokenizer (BPE)**:
+### Step 7. Train Tokenizer (BPE)
 ```bash
 venv/bin/python -m src.training.train_tokenizer
 ```
 
-**Verify Tokenizer**:
+### Step 8. Verify Tokenizer
 ```bash
 venv/bin/python -m src.data.test_tokenizer
 ```
 
-**Run Pre-training (Denoising Objective)**:
+### Step 9. Run Pre-training (Denoising Objective)
 ```bash
 # Basic run (3 epochs, batch size 8)
-venv/bin/python -m src.training.train --en_path data/cleaned_wikitext_train --bn_path data/cleaned_wikipedia_bn_train
+venv/bin/python -m src.training.train \
+  --en_path data/cleaned_wikitext_train \
+  --bn_path data/cleaned_wikipedia_bn_train \
+  --output_dir models/checkpoints
 
 # Custom run
 venv/bin/python -m src.training.train --epochs 5 --batch_size 16 --output_dir models/custom_ckpt --en_path data/cleaned_wikitext_train --bn_path data/cleaned_wikipedia_bn_train
 ```
 
 Pre-training saves a Hugging Face model checkpoint to `<output_dir>/final`.
-**Run Fine-tuning (Translation, en → bn)**:
+
+### Step 10. Run Fine-tuning (Translation, en → bn)
 ```bash
 # Fine-tune starting from the pre-training checkpoint saved at models/checkpoints/final
 venv/bin/python -m src.training.finetune \
@@ -114,6 +120,11 @@ Note: `--init_model_dir` must point to an existing Hugging Face checkpoint direc
 If you trained pre-training with a different `--output_dir`, set `--init_model_dir` to that `<output_dir>/final` folder.
 If you haven’t run pre-training yet, run:
 `venv/bin/python -m src.training.train --output_dir models/checkpoints` (which produces `models/checkpoints/final`).
+
+### Step 11 (Optional). Inspect / Visualize Datasets
+```bash
+venv/bin/python -m src.data.visualize_data
+```
 ---
 
 ## 📂 Data Pipeline Details
