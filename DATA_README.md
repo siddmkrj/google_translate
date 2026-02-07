@@ -1,56 +1,41 @@
-# Data Pipeline Summary
+# Data Pipeline Documentation
 
-## 1. Data Ingestion
-**Script**: `src/data/ingest_general.py`
-- Supports loading from Hugging Face, streaming, and local saving.
+This directory contains the datasets and documentation for the English-Bengali translation project.
 
-**Datasets Ingested**:
-1.  **English**: 
-    - Source: `wikitext` (config: `wikitext-2-raw-v1`)
-    - Split: `train` (full)
-    - Path: `data/wikitext_wikitext-2-raw-v1_train`
-    - Initial Size: ~36,718 samples
+## Directory Structure
+- `wikitext_wikitext-2-raw-v1_train`: Raw English data (Wikitext).
+- `wikimedia_wikipedia_20231101.bn_train`: Raw Bengali data (Wikipedia).
+- `cleaned_wikitext_train`: Cleaned English data.
+- `cleaned_wikipedia_bn_train`: Cleaned Bengali data.
 
-2.  **Bengali**:
-    - Source: `wikimedia/wikipedia` (config: `20231101.bn`)
-    - Split: `train` (subset)
-    - Path: `data/wikimedia_wikipedia_20231101.bn_train`
-    - Initial Size: 10,000 samples (streamed)
+## Pipeline Steps
 
-## 2. Data Cleaning
-**Script**: `src/data/clean_data.py`
-- **Normalization**: Unicode NFKC, whitespace stripping.
-- **Language ID**: Uses `fasttext` (model: `lid.176.bin`).
-- **Deduplication**: MD5 hash-based exact deduplication.
-- **Filtering**: Strict regex for Latin (En) and Bengali (Bn) scripts.
+### 1. Ingestion
+Script: `src/data/ingest_general.py`
+- **English**: Ingested full `wikitext` training set (~36k samples).
+- **Bengali**: Streamed and ingested 10k samples from `wikimedia/wikipedia`.
 
-**Cleaning Results**:
-1.  **English (Wikitext)**:
-    - Path: `data/cleaned_wikitext_train`
-    - Count: 36,718 -> **19,328**
-    - *Note*: High reduction due to short lines/headers in raw wikitext.
-
-2.  **Bengali (Wikipedia)**:
-    - Path: `data/cleaned_wikipedia_bn_train`
-    - Count: 10,000 -> **9,983**
-    - *Note*: High quality retention.
-
-## 3. Balancing
-Script: `src/data/balance_data.py`
-- **Objective**: Equalize corpus size for better initial alignment.
-- **Action**: Downsampled English `cleaned_wikitext_train` to 10,000 samples.
-- **Output**: `balanced_wikitext_train`.
+### 2. Cleaning
+Script: `src/data/clean_data.py`
+- **Normalization**: Unicode NFKC.
+- **Filtering**:
+    - **English**: Kept Latin script, basic punctuation. Removed garbage/short lines.
+    - **Bengali**: Kept Bengali Unicode range.
+- **Deduplication**: Exact hash-based.
+- **Results**:
+    - En: 36,718 -> 19,328 samples.
+    - Bn: 10,000 -> 9,983 samples.
 
 ## Current Status (Ready for Training)
 | Language | Dataset Name | Path | Samples |
 | :--- | :--- | :--- | :--- |
-| **English** | Wikitext (Balanced) | `data/balanced_wikitext_train` | **10,000** |
+| **English** | Wikitext (Cleaned) | `data/cleaned_wikitext_train` | **19,328** |
 | **Bengali** | Wikipedia (Cleaned) | `data/cleaned_wikipedia_bn_train` | **9,983** |
 
 ## Usage
-To load the balanced data:
+To load the data:
 ```python
 from datasets import load_from_disk
-ds_en = load_from_disk('data/balanced_wikitext_train')
+ds_en = load_from_disk('data/cleaned_wikitext_train')
 ds_bn = load_from_disk('data/cleaned_wikipedia_bn_train')
 ```

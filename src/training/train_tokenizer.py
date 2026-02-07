@@ -53,7 +53,7 @@ def train_tokenizer(en_path, bn_path, output_dir, vocab_size=32000):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--en_path", default="data/balanced_wikitext_train", help="Path to English dataset")
+    parser.add_argument("--en_path", default="data/cleaned_wikitext_train", help="Path to English dataset")
     parser.add_argument("--bn_path", default="data/cleaned_wikipedia_bn_train", help="Path to Bengali dataset")
     parser.add_argument("--output_dir", default="models/tokenizer", help="Output directory")
     parser.add_argument("--vocab_size", type=int, default=32000, help="Vocabulary size")

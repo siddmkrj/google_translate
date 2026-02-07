@@ -5,7 +5,7 @@ from src.training.model import get_model
 from src.training.dataset import T5DenoisingDataset
 from tokenizers import Tokenizer
 
-def train(output_dir="models/checkpoints", tokenizer_path="models/tokenizer/tokenizer.json", en_path="data/balanced_wikitext_train", bn_path="data/cleaned_wikipedia_bn_train", epochs=3, batch_size=8, lr=5e-4):
+def train(output_dir="models/checkpoints", tokenizer_path="models/tokenizer/tokenizer.json", en_path="data/cleaned_wikitext_train", bn_path="data/cleaned_wikipedia_bn_train", epochs=3, batch_size=8, lr=5e-4):
     
     # 1. Dataset
     print("Initializing Dataset...")
