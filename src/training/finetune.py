@@ -10,6 +10,22 @@ from transformers import Trainer, TrainingArguments, T5ForConditionalGeneration
 from src.training.dataset import T5TranslationDataset
 
 
+def _find_hf_checkpoints(search_root: str = "models") -> list[str]:
+    """
+    Best-effort discovery of local Hugging Face checkpoints.
+    We consider a directory a checkpoint if it contains `config.json`.
+    """
+    candidates: list[str] = []
+    if not os.path.isdir(search_root):
+        return candidates
+
+    for dirpath, _, filenames in os.walk(search_root):
+        if "config.json" in filenames:
+            candidates.append(dirpath)
+    candidates.sort()
+    return candidates
+
+
 def finetune(
     parallel_path: str = "data/cleaned_banglanmt_parallel",
     src_lang: str = "en",
@@ -29,9 +45,27 @@ def finetune(
     prefix: str = "translate English to Bengali: ",
 ):
     if not os.path.isdir(init_model_dir):
+        found = _find_hf_checkpoints("models")
+        hint = ""
+        if found:
+            shown = "\n".join(f"- {p}" for p in found[:10])
+            more = "" if len(found) <= 10 else f"\n(and {len(found) - 10} more)"
+            hint = (
+                "\n\nDetected local HF checkpoints you can use for --init_model_dir:\n"
+                f"{shown}{more}"
+            )
+        else:
+            hint = (
+                "\n\nNo local Hugging Face checkpoints were found under `models/`.\n"
+                "Create one by running pre-training first, e.g.:\n"
+                "  venv/bin/python -m src.training.train --output_dir models/checkpoints\n"
+                "Then fine-tune with:\n"
+                "  --init_model_dir models/checkpoints/final"
+            )
         raise FileNotFoundError(
             f"init_model_dir not found: {init_model_dir}. "
             "Run pre-training first (src.training.train) or pass --init_model_dir."
+            f"{hint}"
         )
 
     print("Loading tokenizer...")

@@ -109,6 +109,11 @@ venv/bin/python -m src.training.finetune \
 ```
 
 Fine-tuning saves a Hugging Face model checkpoint to `<output_dir>/final`.
+
+Note: `--init_model_dir` must point to an existing Hugging Face checkpoint directory (a folder containing `config.json` + model weights).
+If you trained pre-training with a different `--output_dir`, set `--init_model_dir` to that `<output_dir>/final` folder.
+If you haven’t run pre-training yet, run:
+`venv/bin/python -m src.training.train --output_dir models/checkpoints` (which produces `models/checkpoints/final`).
 ---
 
 ## 📂 Data Pipeline Details
