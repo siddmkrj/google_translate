@@ -64,6 +64,11 @@ venv/bin/python src/data/ingest_parallel.py --dataset csebuetnlp/banglanmt --spl
 venv/bin/python src/training/train_tokenizer.py
 ```
 
+**Verify Tokenizer**:
+```bash
+venv/bin/python src/data/test_tokenizer.py
+```
+
 **Run Pre-training (Denoising Objective)**:
 ```bash
 # Basic run (3 epochs, batch size 8)
@@ -94,7 +99,11 @@ venv/bin/python -m src.training.train --epochs 5 --batch_size 16 --output_dir mo
     -   **Filtering**: Script validation (Latin for En, Bengali for Bn).
 
 ### Visualization
-Check `src/data/data_visualization.ipynb` to explore the datasets interactively.
+Check `src/data/visualize_data.py` to inspect the datasets interactively in the console.
+
+```bash
+venv/bin/python src/data/visualize_data.py
+```
 
 ---
 
