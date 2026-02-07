@@ -29,14 +29,28 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+```
+### 1.5 Download Language ID Model
+```bash
+wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin -O models/lid.176.bin
+```
+
 ### 2. Run Data Pipeline
 **Ingest & Clean Monolingual Data**:
 ```bash
-# Ingest
-venv/bin/python src/data/ingest_general.py
+# 1. Ingest Data (English & Bengali)
+# English (Wikitext)
+venv/bin/python src/data/ingest_general.py --dataset wikitext --config wikitext-2-raw-v1 --split train
 
-# Clean (Normalization, Dedup, Language ID)
-venv/bin/python src/data/clean_data.py
+# Bengali (Wikipedia)
+venv/bin/python src/data/ingest_general.py --dataset wikimedia/wikipedia --config 20231101.bn --split train
+
+# 2. Clean Data
+# English
+venv/bin/python src/data/clean_data.py --dataset_path data/wikitext_wikitext-2-raw-v1_train --output_path data/cleaned_wikitext_train --lang en
+
+# Bengali
+venv/bin/python src/data/clean_data.py --dataset_path data/wikimedia_wikipedia_20231101.bn_train --output_path data/cleaned_wikipedia_bn_train --lang bn
 ```
 
 **Ingest Parallel Data**:
@@ -54,10 +68,10 @@ venv/bin/python src/training/train_tokenizer.py
 ```bash
 # Basic run (3 epochs, batch size 8)
 # Basic run (3 epochs, batch size 8)
-venv/bin/python src/training/train.py --en_path data/balanced_wikitext_train --bn_path data/cleaned_wikipedia_bn_train
+venv/bin/python -m src.training.train --en_path data/balanced_wikitext_train --bn_path data/cleaned_wikipedia_bn_train
 
 # Custom run
-venv/bin/python src/training/train.py --epochs 5 --batch_size 16 --output_dir models/custom_ckpt --en_path data/balanced_wikitext_train --bn_path data/cleaned_wikipedia_bn_train
+venv/bin/python -m src.training.train --epochs 5 --batch_size 16 --output_dir models/custom_ckpt --en_path data/balanced_wikitext_train --bn_path data/cleaned_wikipedia_bn_train
 ```
 
 ---
