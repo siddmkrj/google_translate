@@ -77,39 +77,41 @@ def train_tokenizer(
     except Exception:
         mlflow = None
 
-    if mlflow is None:
+    def _train_and_save_and_log():
         tokenizer.train_from_iterator(batch_iterator(), trainer=trainer)
-    else:
-        ctx = mlflow.start_run(run_name=run_name) if run_name else mlflow.start_run()
-        with ctx:
-            tokenizer.train_from_iterator(batch_iterator(), trainer=trainer)
-    
-    # Post-processor (optional, but good for BERT/RoBERTa style)
-    # For T5/Seq2Seq, standard might be simpler. Let's stick to simple BPE for now.
-    
-    # Decoder
-    tokenizer.decoder = decoders.ByteLevel() # or BPEDecoder
-    
-    # Save
-    os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, "tokenizer.json")
-    print(f"Saving tokenizer to {save_path}...")
-    tokenizer.save(save_path)
-    print("Tokenizer saved.")
 
-    # MLflow: log key params + tokenizer artifact
-    _mlflow_log_params_and_artifacts(
-        params={
-            "en_path": en_path,
-            "bn_path": bn_path,
-            "vocab_size": vocab_size,
-            "en_samples": len(ds_en),
-            "bn_samples": len(ds_bn),
-            "output_dir": output_dir,
-        },
-        tokenizer_dir=output_dir,
-        tokenizer_filename="tokenizer.json",
-    )
+        # Post-processor (optional, but good for BERT/RoBERTa style)
+        # For T5/Seq2Seq, standard might be simpler. Let's stick to simple BPE for now.
+
+        # Decoder
+        tokenizer.decoder = decoders.ByteLevel()  # or BPEDecoder
+
+        # Save
+        os.makedirs(output_dir, exist_ok=True)
+        save_path = os.path.join(output_dir, "tokenizer.json")
+        print(f"Saving tokenizer to {save_path}...")
+        tokenizer.save(save_path)
+        print("Tokenizer saved.")
+
+        # MLflow: log key params + tokenizer artifact
+        _mlflow_log_params_and_artifacts(
+            params={
+                "en_path": en_path,
+                "bn_path": bn_path,
+                "vocab_size": vocab_size,
+                "en_samples": len(ds_en),
+                "bn_samples": len(ds_bn),
+                "output_dir": output_dir,
+            },
+            tokenizer_dir=output_dir,
+            tokenizer_filename="tokenizer.json",
+        )
+
+    if mlflow is None:
+        _train_and_save_and_log()
+    else:
+        with (mlflow.start_run(run_name=run_name) if run_name else mlflow.start_run()):
+            _train_and_save_and_log()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

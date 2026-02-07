@@ -57,8 +57,99 @@ def _maybe_log_mlflow_artifacts(output_dir: str):
         print(f"MLflow artifact logging skipped: {e}")
 
 
+def _maybe_log_mlflow_metric(name: str, value: float):
+    try:
+        import mlflow  # type: ignore
+
+        if mlflow.active_run() is None:
+            return
+        mlflow.log_metric(name, value)
+    except Exception:
+        return
+
+
+def _device():
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
+def _compute_bleu(
+    model: T5ForConditionalGeneration,
+    tokenizer: Tokenizer,
+    dataset,
+    src_lang: str,
+    tgt_lang: str,
+    prefix: str,
+    max_input_length: int,
+    max_new_tokens: int,
+    max_samples: int,
+):
+    """
+    Compute SacreBLEU on a (small) eval dataset by running `model.generate`.
+    """
+    try:
+        import evaluate  # type: ignore
+    except Exception as e:
+        print(f"Skipping BLEU (evaluate not available): {e}")
+        return None
+
+    metric = evaluate.load("sacrebleu")
+    n = min(len(dataset), max_samples)
+    if n <= 0:
+        return None
+
+    pad_id = tokenizer.token_to_id("[PAD]")
+    eos_id = tokenizer.token_to_id("[SEP]")
+    if pad_id is None or eos_id is None:
+        print("Skipping BLEU (tokenizer missing [PAD]/[SEP]).")
+        return None
+
+    dev = _device()
+    model = model.to(dev)
+    model.eval()
+
+    preds: list[str] = []
+    refs: list[list[str]] = []
+
+    with torch.no_grad():
+        for i in range(n):
+            row = dataset[i]
+            tr = row.get("translation") or {}
+            if not isinstance(tr, dict):
+                tr = {}
+
+            src_text = tr.get(src_lang, "") or ""
+            tgt_text = tr.get(tgt_lang, "") or ""
+            src_text = f"{prefix}{src_text}" if prefix else src_text
+
+            enc = tokenizer.encode(src_text)
+            ids = enc.ids
+            if len(ids) > max_input_length - 1:
+                ids = ids[: max_input_length - 1]
+            ids = ids + [eos_id]
+
+            input_ids = torch.tensor([ids], dtype=torch.long, device=dev)
+            attention_mask = torch.ones_like(input_ids, device=dev)
+
+            out = model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                max_new_tokens=max_new_tokens,
+            )
+            pred_text = tokenizer.decode(out[0].tolist(), skip_special_tokens=True)
+            preds.append(pred_text)
+            refs.append([tgt_text])
+
+    score = metric.compute(predictions=preds, references=refs)
+    return score
+
+
 def finetune(
-    parallel_path: str = "data/cleaned_banglanmt_parallel",
+    parallel_path: str = "data/cleaned_banglanmt_parallel_train",
+    eval_parallel_path: Optional[str] = "data/cleaned_banglanmt_parallel_test",
     src_lang: str = "en",
     tgt_lang: str = "bn",
     init_model_dir: str = "models/checkpoints/final",
@@ -74,6 +165,9 @@ def finetune(
     max_train_samples: Optional[int] = None,
     max_eval_samples: Optional[int] = None,
     prefix: str = "translate English to Bengali: ",
+    compute_bleu: bool = True,
+    metric_max_samples: int = 200,
+    metric_max_new_tokens: int = 128,
     mlflow_tracking_uri: Optional[str] = None,
     mlflow_experiment: Optional[str] = None,
     run_name: Optional[str] = None,
@@ -115,17 +209,29 @@ def finetune(
     model.config.eos_token_id = eos_token_id
     model.config.decoder_start_token_id = pad_token_id
 
-    print(f"Loading cleaned parallel dataset from {parallel_path} ...")
-    ds = load_from_disk(parallel_path)
-    print(f"Parallel examples: {len(ds)}")
+    print(f"Loading cleaned train parallel dataset from {parallel_path} ...")
+    ds_train_full = load_from_disk(parallel_path)
+    print(f"Train examples (full): {len(ds_train_full)}")
 
-    if val_size <= 0 or val_size >= 1:
-        raise ValueError("--val_size must be in (0, 1).")
+    ds_eval = None
+    if eval_parallel_path:
+        if os.path.isdir(eval_parallel_path):
+            print(f"Loading cleaned test/val parallel dataset from {eval_parallel_path} ...")
+            ds_eval = load_from_disk(eval_parallel_path)
+            print(f"Eval examples (full): {len(ds_eval)}")
+        else:
+            print(f"WARNING: eval_parallel_path not found: {eval_parallel_path}. Falling back to train split.")
 
-    print(f"Creating train/val split (val_size={val_size}, seed={seed}) ...")
-    split = ds.train_test_split(test_size=val_size, seed=seed, shuffle=True)
-    ds_train = split["train"]
-    ds_val = split["test"]
+    if ds_eval is None:
+        if val_size <= 0 or val_size >= 1:
+            raise ValueError("--val_size must be in (0, 1).")
+        print(f"Creating train/val split from train (val_size={val_size}, seed={seed}) ...")
+        split = ds_train_full.train_test_split(test_size=val_size, seed=seed, shuffle=True)
+        ds_train = split["train"]
+        ds_val = split["test"]
+    else:
+        ds_train = ds_train_full
+        ds_val = ds_eval
 
     if max_train_samples is not None:
         ds_train = ds_train.select(range(min(max_train_samples, len(ds_train))))
@@ -194,10 +300,31 @@ def finetune(
     trainer.save_model(os.path.join(output_dir, "final"))
     _maybe_log_mlflow_artifacts(output_dir)
 
+    if compute_bleu:
+        print(f"Computing BLEU on up to {metric_max_samples} eval samples...")
+        bleu = _compute_bleu(
+            model=model,
+            tokenizer=tok,
+            dataset=ds_val,
+            src_lang=src_lang,
+            tgt_lang=tgt_lang,
+            prefix=prefix,
+            max_input_length=max_input_length,
+            max_new_tokens=metric_max_new_tokens,
+            max_samples=metric_max_samples,
+        )
+        if bleu and isinstance(bleu, dict) and "score" in bleu:
+            print(f"BLEU: {bleu['score']}")
+            try:
+                _maybe_log_mlflow_metric("bleu", float(bleu["score"]))
+            except Exception:
+                pass
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fine-tune on cleaned parallel translation data.")
-    parser.add_argument("--parallel_path", default="data/cleaned_banglanmt_parallel")
+    parser.add_argument("--parallel_path", default="data/cleaned_banglanmt_parallel_train")
+    parser.add_argument("--eval_parallel_path", default="data/cleaned_banglanmt_parallel_test")
     parser.add_argument("--src_lang", default="en")
     parser.add_argument("--tgt_lang", default="bn")
     parser.add_argument("--init_model_dir", default="models/checkpoints/final")
@@ -216,6 +343,11 @@ if __name__ == "__main__":
     parser.add_argument("--max_eval_samples", type=int, default=None)
     parser.add_argument("--prefix", default="translate English to Bengali: ")
 
+    # Metrics (optional)
+    parser.add_argument("--no_compute_bleu", action="store_true", help="Disable BLEU computation")
+    parser.add_argument("--metric_max_samples", type=int, default=200, help="Max eval samples used for BLEU")
+    parser.add_argument("--metric_max_new_tokens", type=int, default=128, help="Generation max_new_tokens for BLEU")
+
     # MLflow (optional)
     parser.add_argument("--mlflow_tracking_uri", default=None, help="e.g. http://localhost:5001")
     parser.add_argument("--mlflow_experiment", default=None, help="MLflow experiment name")
@@ -224,6 +356,7 @@ if __name__ == "__main__":
     a = parser.parse_args()
     finetune(
         parallel_path=a.parallel_path,
+        eval_parallel_path=a.eval_parallel_path,
         src_lang=a.src_lang,
         tgt_lang=a.tgt_lang,
         init_model_dir=a.init_model_dir,
@@ -239,6 +372,9 @@ if __name__ == "__main__":
         max_train_samples=a.max_train_samples,
         max_eval_samples=a.max_eval_samples,
         prefix=a.prefix,
+        compute_bleu=(not a.no_compute_bleu),
+        metric_max_samples=a.metric_max_samples,
+        metric_max_new_tokens=a.metric_max_new_tokens,
         mlflow_tracking_uri=a.mlflow_tracking_uri,
         mlflow_experiment=a.mlflow_experiment,
         run_name=a.run_name,

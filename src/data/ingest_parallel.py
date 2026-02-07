@@ -29,7 +29,7 @@ def ingest_parallel_data(dataset_name, config_name=None, split='train', output_d
         safe_name = dataset_name.replace("/", "_")
         if config_name:
             safe_name += f"_{config_name}"
-        safe_name += "_parallel"
+        safe_name += f"_parallel_{split}"
         
         output_path = os.path.join(output_dir, safe_name)
         print(f"Saving dataset to {output_path}...")

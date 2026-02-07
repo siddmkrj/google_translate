@@ -19,6 +19,8 @@ tqdm>=4.65.0
 python-dotenv>=1.0.0
 wandb>=0.15.0  # For experiment tracking
 mlflow>=3.4.0  # Local/remote experiment tracking (e.g. http://localhost:5001)
+evaluate>=0.4.0  # Metrics (BLEU, chrF, etc.)
+sacrebleu>=2.4.0  # BLEU/chrf backend for evaluate
 
 # Dev/Test
 pytest>=7.3.0
